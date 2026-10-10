@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#f7f8fa">
+  <title>AgentShield · Security evaluation workbench</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f8fa;
+      --surface: #fff;
+      --surface-soft: #f9fafb;
+      --line: #e4e7ec;
+      --line-strong: #d0d5dd;
+      --text: #101828;
+      --text-secondary: #475467;
+      --muted: #667085;
+      --accent: #3157d5;
+      --accent-hover: #2547b8;
+      --accent-soft: #eef2ff;
+      --success: #067647;
+      --success-bg: #ecfdf3;
+      --warning: #b54708;
+      --warning-bg: #fffaeb;
+      --danger: #b42318;
+      --danger-bg: #fef3f2;
+      --info: #475467;
+      --info-bg: #f2f4f7;
+      --radius-control: 6px;
+      --radius-card: 8px;
+      --radius-large: 10px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.5 Inter, "Segoe UI", Arial, sans-serif;
+    }
+    button, input, select { font: inherit; }
+    button, select { cursor: pointer; }
+    a { color: inherit; text-decoration: none; }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .shell { min-height: 100vh; display: grid; grid-template-columns: 232px minmax(0, 1fr); }
+    .side {
+      position: sticky; top: 0; height: 100vh; padding: 24px 16px 18px;
+      background: var(--surface); border-right: 1px solid var(--line);
+      display: flex; flex-direction: column; z-index: 5;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; padding: 2px 10px; }
+    .brand-mark { color: var(--accent); font-size: 22px; line-height: 1; }
+    .brand-name { font-size: 17px; font-weight: 700; letter-spacing: -.035em; }
+    .workspace-label {
+      margin: 34px 10px 9px; color: var(--muted); font-size: 10px;
+      font-weight: 650; letter-spacing: .11em; text-transform: uppercase;
+    }
+    .side-nav { display: grid; gap: 3px; }
+    .nav {
+      min-height: 40px; padding: 9px 11px; display: flex; align-items: center; gap: 10px;
+      border-radius: var(--radius-control); color: var(--text-secondary); font-size: 13px;
+      transition: background-color .15s ease, color .15s ease;
+    }
+    .nav:hover { background: var(--surface-soft); color: var(--text); }
+    .nav.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+    .nav-mark { width: 7px; height: 7px; border: 1.5px solid currentColor; border-radius: 2px; opacity: .72; }
+    .side-note {
+      margin-top: auto; padding: 14px 10px 2px; border-top: 1px solid var(--line);
+      color: var(--muted); font-size: 11px; line-height: 1.65;
+    }
+    .side-note strong { display: block; color: var(--text-secondary); font-size: 11px; font-weight: 600; }
+    .main { min-width: 0; padding: 32px 40px 56px; }
+    .content { max-width: 1480px; margin: 0 auto; }
+    .page-heading {
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 24px;
+      margin-bottom: 22px;
+    }
+    .eyebrow {
+      margin-bottom: 5px; color: var(--muted); font-size: 10px;
+      font-weight: 650; letter-spacing: .12em; text-transform: uppercase;
+    }
+    h1 { margin: 0; font-size: 27px; line-height: 1.2; letter-spacing: -.045em; font-weight: 650; }
+    .subtitle { margin: 7px 0 0; color: var(--muted); font-size: 13px; }
+    .scope {
+      display: inline-flex; align-items: center; gap: 8px; white-space: nowrap;
+      padding: 7px 10px; border: 1px solid var(--line); border-radius: 99px;
+      background: var(--surface); color: var(--text-secondary); font-size: 11px;
+    }
+    .scope-dot { width: 7px; height: 7px; background: var(--success); border-radius: 50%; }
+    :root { --radius-control: 8px; --radius-card: 10px; --radius-large: 14px; }
+    .hero-layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(290px, .9fr); gap: 32px; align-items: center; }
+    .hero-copy { max-width: 720px; }
+    .page-heading h1 { max-width: 720px; font-size: clamp(32px, 3.5vw, 46px); line-height: 1.08; letter-spacing: -.055em; }
+    .page-heading .eyebrow { color: var(--accent); }
+    .page-heading .subtitle { max-width: 680px; margin-top: 12px; font-size: 15px; line-height: 1.65; }
+    .hero-facts { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 18px; color: var(--text-secondary); font-size: 11px; }
+    .hero-facts span { display: inline-flex; align-items: center; gap: 7px; }
+    .hero-facts span::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+    .hero-visual { padding: 17px 18px 14px; border: 1px solid #dbe4f5; border-radius: 12px; background: linear-gradient(145deg, #f6f8ff, #fff 72%); }
+    .visual-head, .visual-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .visual-head { color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .11em; }
+    .visual-state { padding: 4px 7px; border-radius: 99px; background: #eaf0ff; color: var(--accent); font-size: 9px; letter-spacing: .04em; }
+    .evidence-flow { display: grid; grid-template-columns: 1fr 20px 1fr 20px 1fr; align-items: center; gap: 5px; margin: 20px 0 17px; }
+    .flow-step { min-height: 84px; padding: 10px 9px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+    .flow-index { display: block; margin-bottom: 8px; color: var(--accent); font-size: 9px; font-weight: 700; letter-spacing: .08em; }
+    .flow-step strong { display: block; font-size: 10px; line-height: 1.35; }
+    .flow-step small { display: block; margin-top: 4px; color: var(--muted); font-size: 9px; line-height: 1.35; }
+    .flow-arrow { color: #98a8c8; text-align: center; font-size: 15px; }
+    .visual-foot { justify-content: flex-start; color: var(--text-secondary); font-size: 10px; }
+    .visual-check { display: inline-grid; width: 16px; height: 16px; place-items: center; border-radius: 50%; background: var(--success-bg); color: var(--success); font-size: 10px; font-weight: 700; }
+    .hero-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin-top: 20px; }
+    .hero-actions .button, .hero-actions a.button { display: inline-flex; align-items: center; justify-content: center; }
+    .api-access { position: relative; }
+    .api-access summary { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface); color: var(--text-secondary); cursor: pointer; list-style: none; font-size: 11px; }
+    .api-access summary::-webkit-details-marker { display: none; }
+    .api-access summary::after { content: "⌄"; color: var(--muted); }
+    .api-access[open] summary { border-color: var(--line-strong); border-radius: var(--radius-control) var(--radius-control) 0 0; }
+    .api-access .connect-status { color: var(--muted); }
+    .api-access .connect-form { position: absolute; top: 100%; right: 0; z-index: 8; width: min(430px, calc(100vw - 32px)); padding: 12px; border: 1px solid var(--line-strong); border-top: 0; border-radius: 0 0 var(--radius-control) var(--radius-control); background: #fff; box-shadow: 0 12px 24px #10182814; }
+    .api-access .connect-form input { flex: 1; min-width: 0; width: auto; }
+    .builder { border-top: 3px solid var(--accent); }
+    .section-kicker { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; color: var(--accent); font-size: 9px; font-weight: 700; letter-spacing: .1em; }
+    .section-kicker span { display: grid; width: 18px; height: 18px; place-items: center; border-radius: 50%; background: var(--accent-soft); font-size: 9px; }
+    .summary-card { background: linear-gradient(180deg, #fff, #fbfcff); }
+    .summary-card .card-head h2 { font-size: 17px; }
+    .metric { background: #fff; }
+    .comparison-callout { padding: 12px 14px; margin-top: 14px; border: 1px solid #dbe4f5; border-radius: var(--radius-card); background: #f7f9ff; }
+    .comparison-callout strong { display: block; margin-bottom: 3px; color: var(--text); font-size: 11px; }
+    .comparison-callout p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+    .comparison-callout .button { margin-top: 9px; }
+    .results-grid .card { min-height: 218px; }
+    .history { overflow: hidden; }
+    .nav.active { box-shadow: inset 2px 0 var(--accent); }
+    .connect-form { display: flex; align-items: center; gap: 8px; flex: 1; justify-content: flex-end; }
+    .connect-form input { width: min(100%, 260px); }
+    .notice { color: var(--muted); font-size: 11px; }
+    .field input, .field select, .connect-form input, .scenario-tools input, .trace-select {
+      min-height: 38px; padding: 8px 10px; border: 1px solid var(--line-strong);
+      border-radius: var(--radius-control); background: var(--surface); color: var(--text);
+    }
+    input::placeholder { color: #98a2b3; }
+    .button {
+      min-height: 36px; padding: 8px 12px; border: 1px solid var(--line-strong);
+      border-radius: var(--radius-control); background: var(--surface);
+      color: var(--text-secondary); font-size: 12px; font-weight: 550;
+      transition: border-color .15s ease, background-color .15s ease, color .15s ease;
+    }
+    .button:hover { border-color: #b8c0cc; background: var(--surface-soft); color: var(--text); }
+    .button.primary { border-color: var(--accent); background: var(--accent); color: white; font-weight: 600; }
+    .button.primary:hover { border-color: var(--accent-hover); background: var(--accent-hover); }
+    .button.quiet { border-color: transparent; background: transparent; color: var(--muted); }
+    .button.quiet:hover { border-color: var(--line); background: var(--surface-soft); color: var(--text-secondary); }
+    .button:disabled { cursor: not-allowed; opacity: .48; }
+    .workspace-grid { display: grid; grid-template-columns: minmax(0, 1.48fr) minmax(300px, .82fr); gap: 18px; align-items: start; }
+    .card {
+      min-width: 0; padding: 20px; background: var(--surface);
+      border: 1px solid var(--line); border-radius: var(--radius-large);
+    }
+    .card + .card { margin-top: 16px; }
+    .card-head {
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+      margin-bottom: 18px;
+    }
+    .card-head h2 { margin: 0; font-size: 15px; line-height: 1.35; font-weight: 620; letter-spacing: -.015em; }
+    .card-head p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+    .guard {
+      display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto;
+      padding: 5px 8px; border-radius: 99px; font-size: 10px; font-weight: 650;
+      letter-spacing: .015em; background: var(--warning-bg); color: var(--warning);
+    }
+    .guard::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .guard.on { background: var(--success-bg); color: var(--success); }
+    .guard.off { background: var(--warning-bg); color: var(--warning); }
+    .controls { display: flex; align-items: flex-end; gap: 10px; }
+    .field { min-width: 150px; flex: 1; display: flex; flex-direction: column; gap: 6px; }
+    .field label { color: var(--muted); font-size: 10px; font-weight: 650; letter-spacing: .075em; }
+    .field select { width: 100%; }
+    .scenario-heading {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      margin: 24px 0 10px;
+    }
+    .scenario-heading h3 { margin: 0; font-size: 12px; font-weight: 620; }
+    .scenario-heading span { color: var(--muted); font-size: 11px; }
+    .runner-notice { margin-top: 12px; padding: 10px 12px; border: 1px solid #f2d7a3; border-radius: var(--radius-card); background: #fffaeb; color: #7a4b0e; font-size: 11px; line-height: 1.5; }
+    .scenario-tools { display: flex; align-items: center; gap: 8px; }
+    .scenario-tools input { min-width: 100px; flex: 1; }
+    .filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 11px 0 12px; }
+    .chip {
+      padding: 5px 9px; border: 1px solid transparent; border-radius: 99px;
+      background: transparent; color: var(--muted); font-size: 11px; font-weight: 520;
+    }
+    .chip:hover { border-color: var(--line); background: var(--surface-soft); color: var(--text-secondary); }
+    .chip.on { border-color: #c7d2fe; background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+    .scenario-list {
+      max-height: 410px; overflow: auto; border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+    .scenario {
+      display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; align-items: start;
+      gap: 11px; padding: 12px 6px; border-bottom: 1px solid #f0f1f3;
+      cursor: pointer; transition: background-color .12s ease;
+    }
+    .scenario:last-child { border-bottom: 0; }
+    .scenario:hover { background: #fbfcfe; }
+    .scenario input { width: 15px; height: 15px; margin: 2px 0 0; accent-color: var(--accent); }
+    .scenario strong { display: block; color: var(--text); font-size: 12px; font-weight: 560; line-height: 1.4; }
+    .scenario small { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
+    .sev { padding-top: 2px; color: var(--danger); font-size: 9px; font-weight: 650; letter-spacing: .04em; }
+    .sev.info { color: var(--muted); }
+    .sc-footer { display: flex; justify-content: space-between; gap: 12px; padding-top: 11px; color: var(--muted); font-size: 10px; }
+    .summary-card .card-head { margin-bottom: 16px; }
+    .metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .metric {
+      min-height: 77px; padding: 12px; border: 1px solid var(--line);
+      border-radius: var(--radius-card); background: var(--surface-soft);
+    }
+    .metric label { display: block; color: var(--muted); font-size: 9px; font-weight: 650; letter-spacing: .065em; }
+    .metric b { display: block; margin-top: 5px; color: var(--text); font-size: 22px; line-height: 1.1; font-weight: 650; }
+    .metric.fail b { color: var(--danger); }
+    .metric.pass b { color: var(--success); }
+    .metric.error b { color: var(--warning); }
+    .runmeta { min-height: 32px; margin: 12px 0 13px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+    .actions { display: flex; flex-wrap: wrap; gap: 7px; }
+    .actions .button { min-height: 33px; padding: 7px 9px; font-size: 10px; }
+    .empty { padding: 14px 0; color: var(--muted); font-size: 12px; }
+    .results-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; margin-top: 18px; }
+    .findings { display: flex; flex-direction: column; gap: 8px; }
+    .finding { padding: 11px 12px; border: 1px solid #f4c7c3; border-radius: var(--radius-card); background: var(--danger-bg); }
+    .finding b { color: #7a271a; font-size: 12px; font-weight: 620; }
+    .finding small { display: block; margin-top: 4px; color: #912018; font-size: 11px; line-height: 1.5; }
+    .trace-select { max-width: 190px; min-height: 33px; padding: 5px 8px; font-size: 11px; }
+    .tracebox {
+      max-height: 340px; min-height: 150px; overflow: auto; padding: 13px;
+      border: 1px solid var(--line); border-radius: var(--radius-card);
+      background: var(--surface-soft); color: var(--text-secondary);
+      font: 11px/1.55 ui-monospace, Consolas, monospace; white-space: pre-wrap;
+    }
+    .history { margin-top: 18px; }
+    .history .card-head { align-items: center; }
+    #recentRuns { overflow-x: auto; }
+    .table { width: 100%; min-width: 620px; border-collapse: collapse; color: var(--text-secondary); font-size: 11px; }
+    .table th, .table td { padding: 11px 10px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+    .table th { color: var(--muted); background: var(--surface-soft); font-size: 9px; font-weight: 650; letter-spacing: .06em; }
+    .table a { color: var(--accent); font-weight: 600; }
+    .status { font-weight: 650; }
+    .status.PASS { color: var(--success); }
+    .status.FAIL { color: var(--danger); }
+    .status.ERROR { color: var(--warning); }
+    .status.INCONCLUSIVE { color: var(--muted); }
+    #comparison { min-height: 18px; margin-top: 10px; }
+    .footnote { margin-top: 18px; color: var(--muted); font-size: 10px; }
+    .hidden { display: none !important; }
+    .toast {
+      position: fixed; right: 22px; bottom: 22px; z-index: 20; max-width: min(420px, calc(100vw - 32px));
+      padding: 11px 15px; border: 1px solid #344054; border-radius: var(--radius-card);
+      background: #101828; color: #fff; box-shadow: 0 8px 24px #10182820; font-size: 12px;
+    }
+    .sr-only {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+    }
+    @media (max-width: 1180px) {
+      .main { padding: 28px 25px 44px; }
+      .workspace-grid { grid-template-columns: minmax(0, 1.35fr) minmax(270px, .82fr); gap: 14px; }
+    }
+    @media (max-width: 980px) {
+      .shell { display: block; }
+      .side {
+        position: static; width: 100%; height: auto; min-height: 0; padding: 12px 18px;
+        flex-direction: row; align-items: center; gap: 20px; border-right: 0; border-bottom: 1px solid var(--line);
+      }
+      .workspace-label, .side-note { display: none; }
+      .side-nav { display: flex; align-items: center; gap: 3px; overflow-x: auto; }
+      .nav { min-height: 36px; white-space: nowrap; padding: 8px 10px; }
+      .workspace-grid { grid-template-columns: minmax(0, 1fr); }
+      .main { padding-top: 24px; }
+    }
+    @media (max-width: 680px) {
+      h1 { font-size: 23px; }
+      .side { align-items: flex-start; flex-direction: column; gap: 10px; padding: 12px 14px 9px; }
+      .side-nav { width: 100%; }
+      .main { padding: 22px 14px 36px; }
+      .page-heading { flex-direction: column; gap: 12px; margin-bottom: 17px; }
+      .connect-bar { align-items: stretch; flex-direction: column; gap: 10px; }
+      .connect-form { justify-content: flex-start; }
+      .connect-form input { min-width: 0; flex: 1; }
+      .card { padding: 16px; }
+      .controls { align-items: stretch; flex-direction: column; }
+      .controls .field, .controls .button { width: 100%; }
+      .scenario-tools { align-items: stretch; flex-wrap: wrap; }
+      .scenario-tools input { flex-basis: 100%; }
+      .sc-footer { flex-direction: column; gap: 4px; }
+      .results-grid { grid-template-columns: minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+      .history { margin-top: 14px; }
+      .history .card-head { align-items: flex-start; flex-direction: column; }
+      .trace-select { max-width: 145px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+    }
+    .main { padding-top: 38px; }
+    .page-heading { display: block; padding: 26px 28px; margin-bottom: 18px; border: 1px solid var(--line); border-radius: 16px; background: #fff; box-shadow: 0 6px 20px #10182806; }
+    .workspace-grid { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+    .summary-card .metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .scenario { padding-top: 14px; padding-bottom: 14px; }
+    .scope { background: var(--success-bg); border-color: #d1fadf; color: var(--success); font-weight: 600; }
+    .scope-dot { box-shadow: 0 0 0 3px #d1fadf; }
+    @media (max-width: 980px) {
+      .page-heading, .builder, #results, #history { scroll-margin-top: 70px; }
+      .main { padding: 22px 22px 40px; }
+      .page-heading { padding: 22px; }
+      .workspace-grid { grid-template-columns: minmax(0, 1fr); }
+      .side { position: sticky; top: 0; padding-top: 12px; }
+    }
+    @media (max-width: 760px) {
+      .hero-layout { grid-template-columns: 1fr; gap: 20px; }
+      .hero-visual { max-width: 620px; }
+      .evidence-flow { grid-template-columns: 1fr; gap: 5px; margin: 14px 0; }
+      .flow-step { min-height: auto; }
+      .flow-index { margin-bottom: 4px; }
+      .flow-arrow { transform: rotate(90deg); line-height: 1; }
+    }
+    @media (max-width: 680px) {
+      .page-heading, .builder, #results, #history { scroll-margin-top: 96px; }
+      .main { padding: 16px 12px 30px; }
+      .page-heading { padding: 20px 16px; border-radius: 12px; }
+      .page-heading h1 { font-size: 32px; }
+      .page-heading .subtitle { font-size: 13px; }
+      .hero-facts { gap: 7px 13px; }
+      .hero-actions { align-items: stretch; }
+      .hero-actions > * { flex: 1 1 145px; }
+      .summary-card .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .api-access summary { justify-content: center; }
+      .api-access .connect-form { flex-wrap: wrap; }
+    }
+    .tracebox { max-height: 420px; padding: 8px 12px; border: 0; background: transparent; font: inherit; white-space: normal; }
+    .trace-list { display: grid; }
+    .trace-event { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; padding: 12px 0; }
+    .trace-event + .trace-event { border-top: 1px solid #f0f1f3; }
+    .trace-sequence { display: grid; width: 25px; height: 25px; place-items: center; border: 1px solid #dbe4f5; border-radius: 50%; background: #f6f8ff; color: var(--accent); font: 9px ui-monospace, Consolas, monospace; }
+    .trace-event.verdict-pass .trace-sequence { border-color: #abefc6; background: var(--success-bg); color: var(--success); }
+    .trace-event.verdict-fail .trace-sequence, .trace-event.verdict-error .trace-sequence { border-color: #fecdca; background: var(--danger-bg); color: var(--danger); }
+    .trace-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .trace-head strong { color: var(--text); font-size: 11px; font-weight: 620; }
+    .trace-head > span { color: var(--muted); font: 9px ui-monospace, Consolas, monospace; }
+    .trace-content p { margin: 4px 0 5px; color: var(--text-secondary); font-size: 10px; line-height: 1.5; }
+    .trace-content details summary { color: var(--accent); cursor: pointer; font-size: 10px; }
+    .trace-content pre { max-height: 220px; overflow: auto; margin: 8px 0 0; padding: 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface-soft); color: var(--text-secondary); font: 10px/1.5 ui-monospace, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .workbench-heading { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 22px 25px; }
+    .workbench-heading h1 { max-width: none; margin: 0; font-size: 28px; line-height: 1.2; letter-spacing: -.045em; }
+    .workbench-heading .eyebrow { margin-bottom: 6px; }
+    .workbench-heading .subtitle { margin-top: 6px; font-size: 12px; }
+    .workspace-head-actions { display: flex; align-items: center; justify-content: flex-end; gap: 9px; }
+    @media (max-width: 680px) {
+      .workbench-heading { align-items: stretch; flex-direction: column; gap: 15px; padding: 19px 16px; }
+      .workbench-heading h1 { font-size: 25px; }
+      .workspace-head-actions { justify-content: space-between; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="side" aria-label="Workspace navigation">
+      <a class="brand" href="/" aria-label="AgentShield introduction">
+        <span class="brand-mark" aria-hidden="true">◈</span><span class="brand-name">AgentShield</span>
+      </a>
+      <div class="workspace-label">Workspace</div>
+      <nav class="side-nav" aria-label="Page sections">
+        <a class="nav active" href="#overview" aria-current="location"><span class="nav-mark" aria-hidden="true"></span>Overview</a>
+        <a class="nav" href="#configure"><span class="nav-mark" aria-hidden="true"></span>Configure evaluation</a>
+        <a class="nav" href="#results"><span class="nav-mark" aria-hidden="true"></span>Results</a>
+        <a class="nav" href="#history"><span class="nav-mark" aria-hidden="true"></span>History</a>
+      </nav>
+      <div class="side-note"><strong>Isolated tool sandbox</strong>OpenAI reference runs use synthetic fixtures only</div>
+    </aside>
+
+    <main class="main">
+      <div class="content">
+        <header class="page-heading workbench-heading" id="overview">
+          <div>
+            <div class="eyebrow">AgentShield · Evaluation workspace</div>
+            <h1>Security evaluation</h1>
+            <p class="subtitle">Configure a controlled run, then inspect the evidence it produces.</p>
+          </div>
+          <div class="workspace-head-actions">
+            <span class="scope"><span class="scope-dot" aria-hidden="true"></span>Synthetic tool boundary</span>
+            <details class="api-access">
+              <summary>API access <span id="authStatus" class="connect-status" aria-live="polite">Local development mode</span></summary>
+              <form id="keyForm" class="connect-form">
+                <label class="sr-only" for="apiKey">AgentShield API key</label>
+                <input id="apiKey" type="password" autocomplete="off" placeholder="ash_…" aria-label="AgentShield API key">
+                <button class="button" type="submit">Connect</button>
+                <button class="button quiet" type="button" id="clearKey">Clear key</button>
+              </form>
+            </details>
+          </div>
+        </header>
+
+        <div class="workspace-grid">
+          <section class="card builder" id="configure" aria-labelledby="builderTitle">
+            <div class="card-head">
+              <div><div class="section-kicker"><span>1</span> SET THE TEST</div><h2 id="builderTitle">Build a controlled evaluation</h2><p>Select a deterministic or OpenAI reference agent, then choose the behavior boundaries to exercise.</p></div>
+              <span id="targetGuard" class="guard off">Guard off</span>
+            </div>
+            <div class="controls">
+              <div class="field">
+                <label for="target">AUTHORIZED AGENT TARGET</label>
+                <select id="target" aria-label="Authorized agent target"></select>
+              </div>
+              <button id="guardToggle" class="button" type="button" title="Toggle the runtime policy for the selected agent target">Enable guard</button>
+              <button id="runButton" class="button primary" type="button">Run evaluation</button>
+            </div>
+            <div id="runnerNotice" class="runner-notice hidden" role="status">This reference run sends synthetic scenario text to OpenAI. Tool effects stay in local in-memory fixtures. Configure <code>OPENAI_API_KEY</code> on the server; each run allows up to 10 cases.</div>
+            <div class="scenario-heading"><h3>Choose scenarios</h3><span>OpenAI runs: up to 10 cases · Security · benign · reliability</span></div>
+            <div class="scenario-tools">
+              <label class="sr-only" for="search">Search scenarios</label>
+              <input id="search" type="search" placeholder="Search by name, ID, or category" aria-controls="scenarioList">
+              <button id="selectVisible" class="button" type="button">Select visible</button>
+            </div>
+            <div class="filters" id="filters" aria-label="Filter scenarios"></div>
+            <div class="scenario-list" id="scenarioList" aria-live="polite"><div class="empty">Loading benchmark…</div></div>
+            <div class="sc-footer"><span id="selectionCount">0 selected</span><span><b id="scenarioCount">50</b> cases · <span id="targetCount">—</span> authorized targets</span></div>
+          </section>
+
+          <section class="card summary-card" aria-labelledby="latestRunTitle">
+            <div class="card-head">
+              <div><div class="section-kicker"><span>2</span> REVIEW THE OUTCOME</div><h2 id="latestRunTitle">Latest evaluation</h2><p id="runDescription">Run a suite to populate measured results.</p></div>
+              <span id="runState" class="guard off">Idle</span>
+            </div>
+            <div class="metrics" aria-label="Latest run results">
+              <div class="metric pass"><label>PASS</label><b id="passCount">—</b></div>
+              <div class="metric fail"><label>FAIL</label><b id="failCount">—</b></div>
+              <div class="metric error"><label>ERROR</label><b id="errorCount">—</b></div>
+              <div class="metric"><label>INCONCLUSIVE</label><b id="inconclusiveCount">—</b></div>
+            </div>
+            <div class="runmeta" id="runMeta">Attack success rate — · Benign false positives —</div>
+            <div class="actions">
+              <button id="cancelButton" class="button" type="button" disabled>Cancel run</button>
+              <button id="replayButton" class="button" type="button" disabled>Replay run</button>
+              <button id="reportButton" class="button" type="button" disabled>JSON report</button>
+              <button id="markdownButton" class="button" type="button" disabled>Markdown report</button>
+            </div>
+            <div class="comparison-callout"><strong>Measure the guard’s effect</strong><p>Compare completed runs from both profiles to see which case verdicts changed.</p><button class="button" data-compare type="button">Compare completed runs →</button><div id="comparison" class="notice" aria-live="polite"></div></div>
+          </section>
+        </div>
+
+        <section class="results-grid" id="results" aria-label="Evaluation results">
+          <section class="card" aria-labelledby="findingsTitle">
+            <div class="card-head"><div><div class="section-kicker"><span>3</span> INSPECT EVIDENCE</div><h2 id="findingsTitle">Verified findings</h2><p>Policy violations confirmed from observed target behavior.</p></div></div>
+            <div id="findings" class="findings"><div class="empty">No evaluation selected.</div></div>
+          </section>
+          <section class="card" aria-labelledby="traceTitle">
+            <div class="card-head">
+              <div><h2 id="traceTitle">Execution evidence</h2><p>Scenario input, tool attempts, policy decisions, and outcome.</p></div>
+              <label class="sr-only" for="traceScenario">Choose scenario trace</label>
+              <select id="traceScenario" class="trace-select" aria-label="Choose scenario trace"><option value="">Select case</option></select>
+            </div>
+            <div id="trace" class="tracebox">Scenario events will appear here after a run.</div>
+          </section>
+        </section>
+
+        <section class="card history" id="history" aria-labelledby="historyTitle">
+          <div class="card-head">
+            <div><h2 id="historyTitle">Run history</h2><p>Each run keeps its scenario versions and replayable record.</p></div>
+          </div>
+          <div id="recentRuns" class="empty">No evaluations yet.</div>
+        </section>
+
+        <p class="footnote">Targets use synthetic tools. The optional OpenAI reference runner evaluates a real model but does not connect to a customer agent or external tools.</p>
+      </div>
+    </main>
+  </div>
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+  <script src="/static/app.js?v=4" defer></script>
+</body>
+</html>

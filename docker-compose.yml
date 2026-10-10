@@ -1,0 +1,80 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: agentshield
+      POSTGRES_USER: agentshield
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentshield -d agentshield"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$${REDIS_PASSWORD}\""]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  api:
+    build: .
+    command: ["uvicorn", "agentshield.app:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+    environment: &app_environment
+      AGENTSHIELD_ENV: production
+      AGENTSHIELD_DATABASE_URL: postgresql://agentshield:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/agentshield
+      AGENTSHIELD_REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}@redis:6379/0
+      AGENTSHIELD_BOOTSTRAP_API_KEY: ${AGENTSHIELD_BOOTSTRAP_API_KEY:?Set AGENTSHIELD_BOOTSTRAP_API_KEY in .env}
+      AGENTSHIELD_PLATFORM_API_KEY: ${AGENTSHIELD_PLATFORM_API_KEY:?Set AGENTSHIELD_PLATFORM_API_KEY in .env}
+      AGENTSHIELD_ALLOWED_HOSTS: ${AGENTSHIELD_ALLOWED_HOSTS:?Set AGENTSHIELD_ALLOWED_HOSTS in .env}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      AGENTSHIELD_OPENAI_MODEL: ${AGENTSHIELD_OPENAI_MODEL:-gpt-6-astra}
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/health/ready', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+  worker:
+    build: .
+    command: ["celery", "-A", "agentshield.worker:celery_app", "worker", "--loglevel=INFO", "--concurrency=2"]
+    environment: *app_environment
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  scheduler:
+    build: .
+    command: ["celery", "-A", "agentshield.worker:celery_app", "beat", "--loglevel=INFO"]
+    environment:
+      <<: *app_environment
+      OPENAI_API_KEY: ""
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:

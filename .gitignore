@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+data/
+.env
+.env.*
+!.env.example
+*.dump
+backups/
+# Local design-tool state and reviewer-only reports; keep these on disk, out of Git.
+/.superdesign/
+docs/image-generation-prompts.md
+docs/project-audit.md
+docs/readiness-score.md

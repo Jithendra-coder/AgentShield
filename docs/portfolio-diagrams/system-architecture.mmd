@@ -1,0 +1,55 @@
+flowchart LR
+  subgraph EDGE["Client and edge · outside Compose"]
+    UI["Web workbench<br/>HTML · CSS · JavaScript"]
+    REST["REST client"]
+    PROXY["TLS reverse proxy<br/>deployment-specific"]
+    UI -->|HTTPS| PROXY
+    REST -->|HTTPS| PROXY
+  end
+
+  subgraph RUNTIME["Docker Compose runtime"]
+    subgraph API["Request and control plane"]
+      APP["FastAPI / Uvicorn<br/>REST routes · static pages<br/>API key auth · RBAC · Pydantic"]
+      EVAL["Evaluation API<br/>target / scenario validation<br/>idempotency · snapshots · outbox"]
+      APP -->|validated request| EVAL
+    end
+    subgraph ASYNC["Asynchronous evaluation"]
+      REDIS["Redis 7<br/>Celery broker · rate counters · run lock"]
+      BEAT["Celery Beat<br/>unsent outbox scan · 10 s"]
+      WORKER["Celery worker<br/>late ack · bounded retries · time limits"]
+      ENGINE["Evaluator and synthetic tools<br/>schema · allowlist · tenant<br/>approval · call budget"]
+      CASES["Versioned scenario catalog<br/>50 security, benign, and reliability cases"]
+      BEAT -->|publish pending job| REDIS
+      REDIS -->|queued task| WORKER
+      WORKER --> ENGINE
+      CASES --> ENGINE
+    end
+    PG[("PostgreSQL 16<br/>tenant-scoped runs · policies<br/>snapshots · evidence · outbox")]
+    SIGNALS["JSON logs · request IDs<br/>/health · /health/ready"]
+    EVAL -->|atomic run + snapshot + outbox| PG
+    EVAL -.->|immediate Celery enqueue| REDIS
+    APP -.->|rate-limit counters| REDIS
+    PG -.->|pending outbox| BEAT
+    WORKER -->|run state · findings · events| PG
+    APP -.-> SIGNALS
+    WORKER -.-> SIGNALS
+  end
+
+  OPENAI["OpenAI Responses API<br/>opt-in reference target"]
+  ENGINE -->|Synthetic prompt and tool schema| OPENAI
+  OPENAI -->|At most one tool-call proposal| ENGINE
+  ENGINE -->|Synthetic tool result or denial| OPENAI
+  OPENAI -->|Final model response| ENGINE
+
+  PROXY -->|REST| APP
+
+  classDef interface fill:#EFF6FF,stroke:#2563EB,color:#0F172A,stroke-width:1px;
+  classDef service fill:#EFF6FF,stroke:#2563EB,color:#0F172A,stroke-width:1px;
+  classDef store fill:#F0FDFA,stroke:#0F766E,color:#0F172A,stroke-width:1px;
+  classDef decision fill:#FFFBEB,stroke:#B45309,color:#0F172A,stroke-width:1px;
+  classDef ops fill:#F8FAFC,stroke:#94A3B8,color:#0F172A,stroke-width:1px;
+  class UI,REST,PROXY,OPENAI interface;
+  class APP,EVAL,BEAT,WORKER service;
+  class PG,REDIS store;
+  class ENGINE decision;
+  class CASES,SIGNALS ops;

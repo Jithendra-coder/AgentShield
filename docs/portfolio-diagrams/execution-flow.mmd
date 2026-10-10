@@ -1,0 +1,72 @@
+flowchart TD
+  START([Workbench or REST client<br/>POST /api/v1/evaluations])
+  EDGE["Trusted host · request size cap<br/>API key auth · rate limits"]
+  AUTH{"Credential and role valid?"}
+  AUTH_NO["401 / 403<br/>Reject request"]
+  VALIDATE["Strict request schema<br/>Authorized synthetic target · known scenarios<br/>At most 50 deterministic or 10 OpenAI"]
+  INVALID["422<br/>Return validation error"]
+  IDEMPOTENCY{"Idempotency key exists?"}
+  REUSE["Same key + same body<br/>Return existing run"]
+  CONFLICT["Same key + changed body<br/>409 conflict"]
+  COMMIT[("PostgreSQL transaction<br/>run + scenario snapshots + policy ref<br/>job outbox committed atomically")]
+  ACCEPT["Return 202 + run ID<br/>Workbench polls status and results"]
+  DISPATCH["Production: API tries immediate Celery enqueue<br/>Beat republishes pending outbox every 10 s"]
+  DEV["Local development<br/>FastAPI BackgroundTasks"]
+  BROKER["Redis broker"]
+  WORKER["Celery worker<br/>Redis per-run lock · late ack<br/>bounded retry · time limits"]
+  RETRY{"Infrastructure failure?"}
+  FAILED["After 5 retries<br/>mark run FAILED"]
+  LOAD["Load stored scenario snapshots<br/>and policy reference"]
+  CASES["For each case<br/>fresh isolated state · check cancellation"]
+  MODEL["OpenAI reference runner<br/>one function call · one final response max"]
+  POLICY{"Schema · allowlist · tenant<br/>approval · call budget pass?"}
+  DENY["Deny call<br/>skip action · record reason"]
+  EXEC["Run allowed action<br/>against scenario fixture"]
+  CHECK["Check postconditions and raw output<br/>runner exception → ERROR evidence;<br/>continue to next case"]
+  SAVE["Redact events and evidence<br/>persist run outcomes in PostgreSQL"]
+  REPORT(["Workbench reads status, findings,<br/>events, and reports through REST"])
+  LOCAL_OUT["Return existing run"]
+
+  START --> EDGE --> AUTH
+  AUTH -->|No| AUTH_NO
+  AUTH -->|Yes| VALIDATE
+  VALIDATE -->|Invalid| INVALID
+  VALIDATE -->|Valid| IDEMPOTENCY
+  IDEMPOTENCY -->|Existing, same request| REUSE --> LOCAL_OUT
+  IDEMPOTENCY -->|Existing, changed request| CONFLICT
+  IDEMPOTENCY -->|New| COMMIT
+  COMMIT --> ACCEPT
+  COMMIT -.-> DISPATCH
+  COMMIT -.-> DEV
+  DISPATCH -.-> BROKER
+  BROKER -.-> WORKER
+  WORKER --> LOAD
+  WORKER -. infrastructure exception .-> RETRY
+  RETRY -->|Retry ≤ 5 · backoff| BROKER
+  RETRY -->|Exhausted| FAILED
+  LOAD --> CASES
+  CASES -->|Deterministic proposal| POLICY
+  CASES -->|OpenAI reference target| MODEL
+  MODEL -->|Strict function-call proposal| POLICY
+  POLICY -->|Denied| DENY
+  POLICY -->|Allowed| EXEC
+  DENY --> CHECK
+  EXEC --> CHECK
+  DENY -->|OpenAI path: synthetic denial| MODEL
+  EXEC -->|OpenAI path: synthetic result| MODEL
+  MODEL -->|Final response checked| CHECK
+  CHECK -->|More cases| CASES
+  CHECK -->|Complete| SAVE --> REPORT
+
+  classDef input fill:#EFF6FF,stroke:#2563EB,color:#0F172A;
+  classDef process fill:#EFF6FF,stroke:#2563EB,color:#0F172A;
+  classDef store fill:#F0FDFA,stroke:#0F766E,color:#0F172A;
+  classDef decision fill:#FFFBEB,stroke:#B45309,color:#0F172A;
+  classDef success fill:#F0FDF4,stroke:#15803D,color:#0F172A;
+  classDef error fill:#FEF2F2,stroke:#B91C1C,color:#0F172A;
+  class START,REPORT input;
+  class EDGE,VALIDATE,DISPATCH,DEV,WORKER,LOAD,CASES,EXEC,MODEL process;
+  class COMMIT,BROKER,SAVE store;
+  class AUTH,IDEMPOTENCY,RETRY,POLICY decision;
+  class ACCEPT,REUSE,LOCAL_OUT success;
+  class AUTH_NO,INVALID,CONFLICT,FAILED,DENY error;

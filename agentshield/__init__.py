@@ -1,1 +1,1 @@
-"""AgentShield local agent security evaluation MVP."""
+"""AgentShield AI agent security evaluation platform."""

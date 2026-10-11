@@ -78,6 +78,34 @@ To run the tests, install the development requirements:
 python -m pip install -r requirements-dev.txt
 ```
 
+## Run evaluations from a terminal
+
+Clone the public repository and install its runtime dependencies:
+
+```powershell
+git clone https://github.com/Jithendra-coder/AgentShield.git
+cd AgentShield
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+```
+
+List the built-in scenario IDs, then run selected cases without starting the web server:
+
+```powershell
+python -m agentshield list-scenarios
+python -m agentshield run --runner deterministic --scenario inj-doc-01 --scenario benign-04
+```
+
+The deterministic runner uses no provider credentials. For an OpenAI reference run, set `OPENAI_API_KEY` securely in the current terminal environment, then choose the model and scenarios explicitly:
+
+```powershell
+$env:AGENTSHIELD_OPENAI_MODEL = "your-responses-api-model-id"
+python -m agentshield run --runner openai --model $env:AGENTSHIELD_OPENAI_MODEL --scenario inj-doc-01 --scenario benign-04 --output .\agentshield-report.json
+```
+
+OpenAI runs accept up to 10 scenarios and make real provider requests that may incur charges. Scenario actions still affect only isolated synthetic fixtures; the CLI does not connect to a live agent or external tools. Use `--no-guard` to run a baseline, `--format json` for machine-readable stdout, or `--fail-on-findings` for a nonzero exit when a scenario fails. The full deterministic catalog can be selected with `--all`.
+
 ## API example
 
 The development server does not require a key by default. Production requests use `Authorization: Bearer <api-key>`.

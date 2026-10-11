@@ -9,7 +9,6 @@ import time
 from pathlib import Path
 
 from .engine import DEFAULT_POLICY, evaluate_scenario
-from .openai_agent import MODEL, create_client, evaluate_openai_scenario
 from .scenarios import BY_ID, SCENARIOS
 
 
@@ -23,7 +22,7 @@ def _parser() -> argparse.ArgumentParser:
     selection = run.add_mutually_exclusive_group(required=True)
     selection.add_argument("--scenario", action="append", metavar="ID", help="Scenario ID; repeat to select multiple.")
     selection.add_argument("--all", action="store_true", help="Run the full catalog (deterministic runner only).")
-    run.add_argument("--model", default=MODEL, help="OpenAI Responses API model; defaults to AGENTSHIELD_OPENAI_MODEL.")
+    run.add_argument("--model", help="OpenAI Responses API model; defaults to AGENTSHIELD_OPENAI_MODEL.")
     run.add_argument("--no-guard", action="store_true", help="Run without the default policy guard.")
     run.add_argument("--format", choices=("text", "json"), default="text")
     run.add_argument("--output", type=Path, help="Write the full JSON report to this path.")
@@ -31,7 +30,7 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _failure(scenario: dict, error_type: str, runner: str, model: str) -> dict:
+def _failure(scenario: dict, error_type: str, runner: str, model: str | None) -> dict:
     evidence = {"error_type": error_type}
     if runner == "openai":
         evidence.update({"provider": "openai", "model": model})
@@ -92,11 +91,17 @@ def _run(args: argparse.Namespace, parser: argparse.ArgumentParser) -> dict:
 
     policy = None if args.no_guard else DEFAULT_POLICY
     client = None
+    model = args.model
+    openai_evaluator = None
     if args.runner == "openai":
         try:
+            from .openai_agent import MODEL, create_client, evaluate_openai_scenario
+
+            model = model or MODEL
             client = create_client()
         except Exception as exc:
-            raise RuntimeError(f"Could not initialize OpenAI client ({type(exc).__name__}). Check OPENAI_API_KEY and SDK configuration.") from exc
+            raise RuntimeError(f"Could not initialize OpenAI runner ({type(exc).__name__}). Install the OpenAI extra and check OPENAI_API_KEY.") from exc
+        openai_evaluator = evaluate_openai_scenario
 
     executions = []
     provider_error = None
@@ -107,10 +112,10 @@ def _run(args: argparse.Namespace, parser: argparse.ArgumentParser) -> dict:
         try:
             if use_openai and provider_error:
                 raise RuntimeError(provider_error)
-            result = evaluate_openai_scenario(scenario, policy, client=client, model=args.model) if use_openai else evaluate_scenario(scenario, policy)
+            result = openai_evaluator(scenario, policy, client=client, model=model) if use_openai else evaluate_scenario(scenario, policy)
         except Exception as exc:
             error_type = provider_error or type(exc).__name__
-            executions.append(_failure(scenario, error_type, args.runner, args.model))
+            executions.append(_failure(scenario, error_type, args.runner, model))
             if use_openai:
                 provider_error = error_type
             continue
@@ -125,7 +130,7 @@ def _run(args: argparse.Namespace, parser: argparse.ArgumentParser) -> dict:
 
     duration_ms = round((time.perf_counter() - started) * 1000)
     report = {
-        "runner": args.runner, "model": args.model if args.runner == "openai" else None,
+        "runner": args.runner, "model": model if args.runner == "openai" else None,
         "guard_disabled": args.no_guard, "summary": _summary(executions, duration_ms), "executions": executions,
     }
     return report

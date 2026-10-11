@@ -4,6 +4,8 @@ AgentShield is an organization-scoped agent security evaluation service. It comb
 
 **Stack:** Python 3.10+, FastAPI and Pydantic, SQLite for local development, PostgreSQL for production, Redis and Celery for queued runs, a static HTML/CSS/JavaScript workbench, and the optional OpenAI Responses API.
 
+**CLI-only download:** [Download AgentShield-CLI.zip](https://github.com/Jithendra-coder/AgentShield/releases/latest/download/AgentShield-CLI.zip). The ZIP contains only the installable command-line evaluator; follow the [CLI guide](#download-and-run-the-cli-only-package) below.
+
 ## What is implemented
 
 - API key authentication with `viewer`, `operator`, `admin`, and `platform_admin` roles. Keys are random, stored as SHA-256 hashes, shown once, and revocable.
@@ -78,33 +80,120 @@ To run the tests, install the development requirements:
 python -m pip install -r requirements-dev.txt
 ```
 
-## Run evaluations from a terminal
+## Download and run the CLI-only package
 
-Clone the public repository and install its runtime dependencies:
+The [CLI-only ZIP](https://github.com/Jithendra-coder/AgentShield/releases/latest/download/AgentShield-CLI.zip) is for running evaluations without cloning or installing the web application. It contains no frontend, API server, database, Docker files, tests, docs, or README. The full project documentation stays in this repository.
+
+### Files included in the ZIP
+
+```text
+AgentShield-CLI/
+|-- pyproject.toml
+`-- agentshield/
+    |-- __init__.py
+    |-- __main__.py
+    |-- cli.py
+    |-- engine.py
+    |-- openai_agent.py
+    `-- scenarios.py
+```
+
+`pyproject.toml` installs the `agentshield` command. `cli.py` handles command-line options and reports; `engine.py` contains the policy checks and synthetic tool fixture; `scenarios.py` provides the built-in scenario catalog; and `openai_agent.py` is only needed for the optional OpenAI reference runner.
+
+### 1. Download and extract
+
+Download [AgentShield-CLI.zip](https://github.com/Jithendra-coder/AgentShield/releases/latest/download/AgentShield-CLI.zip) and extract it. In PowerShell, change into the extracted `AgentShield-CLI` folder. For example, if it was extracted to Downloads:
 
 ```powershell
-git clone https://github.com/Jithendra-coder/AgentShield.git
-cd AgentShield
+Set-Location "$env:USERPROFILE\Downloads\AgentShield-CLI"
+Get-ChildItem
+```
+
+The folder should contain `pyproject.toml` and the `agentshield` subfolder shown above.
+
+### 2. Install Python and create an isolated environment
+
+Install Python 3.10 or newer, then run these commands from the folder containing `pyproject.toml`:
+
+```powershell
+python --version
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
+python -m pip install --upgrade pip
+python -m pip install .
 ```
 
-List the built-in scenario IDs, then run selected cases without starting the web server:
+This installs the CLI and its packaging tool only. It does not install FastAPI, start a server, or require PostgreSQL, Redis, Docker, or an API key. If PowerShell blocks environment activation, run `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` in that terminal and activate again. To leave the environment later, run `deactivate`.
+
+### 3. List scenarios and run an evaluation
+
+List the scenario IDs available in this package:
 
 ```powershell
-python -m agentshield list-scenarios
-python -m agentshield run --runner deterministic --scenario inj-doc-01 --scenario benign-04
+agentshield list-scenarios
 ```
 
-The deterministic runner uses no provider credentials. For an OpenAI reference run, set `OPENAI_API_KEY` securely in the current terminal environment, then choose the model and scenarios explicitly:
+Run a small deterministic evaluation. This runner is local and makes no provider requests:
 
 ```powershell
-$env:AGENTSHIELD_OPENAI_MODEL = "your-responses-api-model-id"
-python -m agentshield run --runner openai --model $env:AGENTSHIELD_OPENAI_MODEL --scenario inj-doc-01 --scenario benign-04 --output .\agentshield-report.json
+agentshield run --runner deterministic --scenario inj-doc-01 --scenario benign-04
 ```
 
-OpenAI runs accept up to 10 scenarios and make real provider requests that may incur charges. Scenario actions still affect only isolated synthetic fixtures; the CLI does not connect to a live agent or external tools. Use `--no-guard` to run a baseline, `--format json` for machine-readable stdout, or `--fail-on-findings` for a nonzero exit when a scenario fails. The full deterministic catalog can be selected with `--all`.
+Use `--all` to run the full built-in catalog. Add `--no-guard` to compare against the unguarded baseline. A scenario marked `FAIL` means the simulated action violated the expected policy; it is not a result from a live agent.
+
+### 4. Save or consume a JSON report
+
+Write a complete report to a file, while keeping the normal summary in the terminal:
+
+```powershell
+agentshield run --runner deterministic --scenario inj-doc-01 --scenario benign-04 --output .\agentshield-report.json
+```
+
+To print JSON to standard output for scripts, add `--format json`. To return exit code 1 when any selected case fails, add `--fail-on-findings`. Unknown or repeated scenario IDs are rejected.
+
+### 5. Optional: use the OpenAI reference runner
+
+The OpenAI runner sends selected built-in scenario content to the OpenAI Responses API. Tool calls are applied only to AgentShield's in-memory synthetic fixture. It does not connect to an external agent or real tools. OpenAI runs are limited to 10 selected scenarios and provider usage may incur charges.
+
+Install the optional dependencies from the extracted package folder:
+
+```powershell
+python -m pip install ".[openai]"
+```
+
+Enter the API key using a hidden PowerShell prompt. It is kept in this terminal's process environment, not saved in the package:
+
+```powershell
+$secureKey = Read-Host "OpenAI API key" -AsSecureString
+$keyPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureKey)
+try {
+    $env:OPENAI_API_KEY = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($keyPointer)
+} finally {
+    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($keyPointer)
+}
+```
+
+Run one or more scenarios, optionally selecting a model your API account can use:
+
+```powershell
+agentshield run --runner openai --scenario inj-doc-01 --scenario benign-04 --model your-responses-api-model-id --output .\openai-report.json
+```
+
+Omit `--model` to use the runner's configured default. Clear the key from the current terminal when finished:
+
+```powershell
+Remove-Item Env:OPENAI_API_KEY
+```
+
+### Build the ZIP from a source checkout
+
+Repository contributors can regenerate the folder and ZIP from the canonical CLI files:
+
+```powershell
+python scripts/build_cli_bundle.py --output-dir .\dist
+```
+
+This creates `dist\AgentShield-CLI\` and `dist\AgentShield-CLI.zip`. The builder refuses to overwrite either output. The ZIP contains only the six Python modules and `pyproject.toml` listed above; it excludes the frontend, README, API application, configuration, tests, and documentation.
 
 ## API example
 

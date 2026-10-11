@@ -19,13 +19,30 @@ AgentShield is an organization-scoped agent security evaluation service. It comb
 
 Both runners use the built-in synthetic tool boundary. The OpenAI reference runner evaluates AgentShield's own prompt and model-generated tool calls; it does not connect to a user's agent or external tool endpoint.
 
-## Architecture
+## How AgentShield works
 
-![AgentShield system architecture](docs/portfolio-diagrams/system-architecture.svg)
+AgentShield turns security scenarios into observable, repeatable evaluations. Each run links a defined test to observed behavior, an evaluation outcome, and evidence that teams can review.
 
-![AgentShield evaluation execution flow](docs/portfolio-diagrams/execution-flow.svg)
+### System architecture in plain English
 
-The [architecture and trust-boundary notes](docs/architecture.md) explain the runtime controls. The [diagram guide](docs/portfolio-diagrams/README.md) includes editable Mermaid sources and regeneration instructions.
+- **Access layer:** A browser or API client sends a request to the FastAPI service. In production, a TLS reverse proxy sits in front and API keys bind the caller to a role and organization. Request validation, rate limits, trusted-host checks, and security headers protect the service boundary.
+- **Run coordination:** The API validates the target and scenario IDs, saves a snapshot of the selected scenarios, and writes the evaluation and its dispatch record in one PostgreSQL transaction. Redis carries queued work to Celery workers; a scheduled dispatcher retries outbox records that were not sent.
+- **Evaluation boundary:** A worker starts each case with a fresh in-memory synthetic fixture. The deterministic runner uses seeded actions. The optional OpenAI reference runner asks a configured model to propose at most one strict tool call, then checks that proposal against the same local policy and fixture.
+- **Evidence and review:** AgentShield checks the resulting fixture state and response, records findings and an ordered event trace, redacts sensitive values for storage, and returns organization-scoped results and reports through the API.
+
+### What happens during one evaluation
+
+1. **Choose the test.** An operator selects an authorized simulator target with its assigned policy, then chooses scenarios from the versioned catalog.
+2. **Validate and freeze inputs.** The API checks the caller's role and organization, confirms the target is an allowed local simulator, rejects unknown or duplicate scenarios, and saves the selected scenario snapshots with the run.
+3. **Queue the work durably.** The run and its outbox record commit together. The API attempts immediate dispatch; the scheduler can redispatch unsent work after an interruption.
+4. **Start each case cleanly.** A worker takes the run through the Redis queue and creates a fresh synthetic support fixture for each scenario. The fixture contains test records and tools; it has no connection to a customer's live agent, database, email, or payment system.
+5. **Check the proposed action.** AgentShield evaluates tool name, argument shape, tenant scope, approvals, and call limits against the active policy. Allowed actions affect only the in-memory fixture. Denied actions are recorded as policy decisions and do not execute.
+6. **Measure the outcome.** The evaluator inspects the resulting fixture state and response, then labels the case `PASS`, `FAIL`, `ERROR`, or `INCONCLUSIVE`. This makes the report reflect observed simulator behavior and its limits.
+7. **Keep the evidence reviewable.** Findings, redacted event traces, summaries, and reports are stored with the run and exposed through organization-scoped API routes. Teams can replay a completed evaluation or compare matching guard-on and guard-off runs.
+
+If work is interrupted, Celery retries it within configured limits and a per-run Redis lock protects against concurrent duplicate execution. Queued runs can be cancelled immediately; running evaluations check for cancellation between cases. OpenAI reference runs are limited to 10 scenarios and can incur provider charges.
+
+**Scope:** The OpenAI runner evaluates AgentShield's own reference prompt and proposed tool calls. It does not connect to or certify a customer's deployed agent. The [architecture and trust-boundary notes](docs/architecture.md) describe the controls and deployment limits in more detail.
 
 ## Production deployment
 
